@@ -1,0 +1,155 @@
+📄 EMAIL OTP VERIFICATION FLOW (NODE + MONGODB)
+==============================================
+
+✅ PREREQUISITES:
+-----------------
+(1) Node.js installed
+(2) Express + MongoDB setup ready
+(3) Gmail account with App Password generated
+(4) nodemailer, dotenv, mongoose installed
+
+Run: npm install nodemailer dotenv mongoose
+
+---------------------------------------------------------------
+
+🔧 STEP 1: OTP GENERATION FUNCTION
+----------------------------------
+File: utils/generateOtp.js
+
+const generateOtp = () => {
+  return Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit OTP
+};
+
+module.exports = generateOtp;
+
+---------------------------------------------------------------
+
+📨 STEP 2: UPDATED SEND MAIL FUNCTION
+-------------------------------------
+File: utils/sendMail.js
+
+const nodemailer = require("nodemailer");
+require("dotenv").config();
+
+const sendOtpMail = async (to, otp) => {
+  try {
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.GMAIL_USER,
+        pass: process.env.GMAIL_PASS,
+      },
+    });
+
+    const mailOptions = {
+      from: `"Your App Name" <${process.env.GMAIL_USER}>`,
+      to,
+      subject: "Your OTP Code for Verification",
+      html: \`
+        <div style="font-family:sans-serif;">
+          <h2>OTP Verification</h2>
+          <p>Your One Time Password (OTP) is:</p>
+          <h1 style="letter-spacing:2px;">\${otp}</h1>
+          <p>This OTP is valid for 10 minutes. Do not share it with anyone.</p>
+        </div>
+      \`,
+    };
+
+    const result = await transporter.sendMail(mailOptions);
+    console.log("✅ OTP Email sent:", result.response);
+  } catch (error) {
+    console.error("❌ Error sending OTP email:", error);
+    throw error;
+  }
+};
+
+module.exports = sendOtpMail;
+
+---------------------------------------------------------------
+
+🧾 STEP 3: OTP MODEL
+---------------------
+File: models/otpModel.js
+
+const mongoose = require("mongoose");
+
+const otpSchema = new mongoose.Schema({
+  email: { type: String, required: true },
+  otp: { type: String, required: true },
+  createdAt: { type: Date, default: Date.now, expires: 600 }, // 10 mins expiry
+});
+
+module.exports = mongoose.model("Otp", otpSchema);
+
+---------------------------------------------------------------
+
+📬 STEP 4: BACKEND ROUTES
+--------------------------
+
+🔹 Route 1: Send OTP
+----------------------
+POST /send-otp
+Body: { "email": "user@example.com" }
+
+const express = require("express");
+const router = express.Router();
+const Otp = require("../models/otpModel");
+const generateOtp = require("../utils/generateOtp");
+const sendOtpMail = require("../utils/sendMail");
+
+router.post("/send-otp", async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ message: "Email is required" });
+
+  try {
+    const otp = generateOtp();
+    await Otp.findOneAndUpdate(
+      { email },
+      { otp, createdAt: new Date() },
+      { upsert: true, new: true }
+    );
+    await sendOtpMail(email, otp);
+    res.status(200).json({ message: "OTP sent to email" });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to send OTP", error: err });
+  }
+});
+
+🔹 Route 2: Verify OTP
+------------------------
+POST /verify-otp
+Body: { "email": "user@example.com", "otp": "123456" }
+
+router.post("/verify-otp", async (req, res) => {
+  const { email, otp } = req.body;
+  if (!email || !otp) return res.status(400).json({ message: "All fields required" });
+
+  try {
+    const record = await Otp.findOne({ email });
+    if (!record) return res.status(404).json({ message: "No OTP found for this email" });
+    if (record.otp !== otp) return res.status(400).json({ message: "Invalid OTP" });
+
+    await Otp.deleteOne({ email });
+    res.status(200).json({ message: "OTP verified successfully" });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to verify OTP", error: err });
+  }
+});
+
+---------------------------------------------------------------
+
+🧑‍🎨 STEP 5: FRONTEND FLOW
+----------------------------
+1. User enters email ➝ Clicks "Send OTP" ➝ POST /send-otp
+2. User receives OTP in email
+3. User enters OTP ➝ Clicks "Verify" ➝ POST /verify-otp
+4. Backend checks OTP, deletes it on success
+
+---------------------------------------------------------------
+
+✅ FINAL CHECKLIST
+--------------------
+- [x] OTP generated and emailed using nodemailer
+- [x] OTP stored in MongoDB with expiry (10 mins)
+- [x] OTP verified and deleted upon success
+- [x] Gmail App Password used securely from .env

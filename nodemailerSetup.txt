@@ -1,0 +1,93 @@
+📄 NODEMAILER SETUP GUIDE
+=========================
+
+✅ PREREQUISITES:
+-----------------
+(1) Node.js installed  
+(2) Nodemailer installed  
+    ➤ Run: npm install nodemailer  
+(3) A Gmail account (to send emails from)
+
+---
+
+💌 STEP 1: GENERATE GMAIL APP PASSWORD (GMAIL_USER and GMAIL_PASS)
+------------------------------------------------------------------
+
+⚠️ Gmail no longer allows less secure apps to access your account using your regular password.  
+You must use an **App Password**.
+
+Follow these steps to generate it:
+
+(1) Enable 2-Step Verification:
+    ➤ Visit: https://myaccount.google.com/security  
+    ➤ Under “Signing in to Google”, turn ON 2-Step Verification
+
+(2) Create an App Password:
+    ➤ Go to: https://myaccount.google.com/apppasswords  
+    ➤ Select **Mail** as the app  
+    ➤ Choose **Other (Custom name)** and name it “Nodemailer”  
+    ➤ Click **Generate**
+
+(3) Copy the 16-character password (e.g., abcd efgh ijkl mnop)  
+    ➤ Store it securely
+
+(4) Use your Gmail address as:      GMAIL_USER  
+    Use the 16-char App Password as: GMAIL_PASS
+
+---
+
+📦 STEP 2: CREATE `.env` FILE
+------------------------------
+In your project root, create a `.env` file and add:
+
+    GMAIL_USER=yourgmail@gmail.com  
+    GMAIL_PASS=your16charAppPassword  
+
+(✔ Make sure `.env` is listed in `.gitignore` to avoid leaking credentials)
+
+---
+
+📬 STEP 3: CREATE `sendMail.js` FILE
+-------------------------------------
+Use this sample code (if not already created):
+
+const nodemailer = require('nodemailer');
+require('dotenv').config();
+
+const sendMail = async (to, subject, text) => {
+  try {
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.GMAIL_USER,
+        pass: process.env.GMAIL_PASS,
+      },
+    });
+
+    const mailOptions = {
+      from: process.env.GMAIL_USER,
+      to,
+      subject,
+      text,
+    };
+
+    const result = await transporter.sendMail(mailOptions);
+    console.log("✅ Email sent:", result.response);
+  } catch (err) {
+    console.error("❌ Error sending email:", err);
+  }
+};
+
+module.exports = sendMail;
+
+🚀 STEP 4: USE THE FUNCTION
+-------------------------------------
+In your app, call the function like:
+
+const sendMail = require('./sendMail');
+
+sendMail(
+  'recipient@example.com',
+  'Test Subject',
+  'Hello! This is a test email.'
+);
